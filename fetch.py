@@ -27,6 +27,8 @@ REPLACEMENTS = [
     ["\u00a0", ' '],
 ]
 
+HEADER = ['Date', 'User', 'Rating', 'Text']
+
 def fetchPage(url):
     debugPath = os.path.join(DEBUG_CACHE_DIR, md5String(url))
     os.makedirs(DEBUG_CACHE_DIR, exist_ok = True)
@@ -63,6 +65,11 @@ def cleanText(text):
 
     return re.sub(r'\s+', ' ', text).strip()
 
+# 'M/D/YYYY' -> 'YYYY-MM-DD'
+def flipLocalDate(text):
+    parts = text.split('/')
+    return '-'.join([parts[2], ('0' + parts[0])[-2:], ('0' + parts[1])[-2:]])
+
 def minePage(url):
     reviews = {}
 
@@ -91,8 +98,6 @@ def minePage(url):
             print('---')
             '''
 
-        # print(json.dumps(data, indent = 4))
-
         if (('@type' in data) and (data['@type'] == 'LocalBusiness')):
             reviewCount = max(reviewCount, data['aggregateRating']['reviewCount'])
 
@@ -101,6 +106,7 @@ def minePage(url):
                     'author': review['author'],
                     'rating': review['reviewRating']['ratingValue'],
                     'text': cleanText(review['description']),
+                    'date': review['datePublished'],
                 }
 
                 id = createReviewHash(standardReview)
@@ -113,11 +119,12 @@ def minePage(url):
                     'author': review['user']['markupDisplayName'],
                     'rating': review['rating'],
                     'text': cleanText(review['comment']['text']),
+                    'date': flipLocalDate(review['localizedDate']),
                 }
 
                 id = createReviewHash(standardReview)
                 reviews[id] = standardReview
-                
+
     # print(json.dumps(reviews, indent = 4))
 
     return reviews, reviewCount
@@ -145,6 +152,11 @@ def main():
 
     with open(OUT_PATH, 'w') as file:
         json.dump(allReviews, file, indent = 4)
+
+    # Output as tsv.
+    print("\t".join(HEADER))
+    for (id, review) in allReviews.items():
+        print("\t".join([review['date'], review['author'], str(review['rating']), review['text']]))
 
 if (__name__ == '__main__'):
     main()
